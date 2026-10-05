@@ -45,23 +45,15 @@ export default function WeddingLanding({
       className={`wedding-landing${isLeaving ? " wedding-landing-leaving" : ""}`}
     >
       <div className="landing-photo-wall" aria-hidden="true">
-        {wedding.gallery.map((photo, index) => {
-          const photoNumber = index + 1;
-
-          return (
-            <figure className={`landing-photo landing-photo-${photoNumber}`} key={photoNumber}>
-              <Image
-                alt=""
-                fill
-                fetchPriority={photoNumber === 1 ? "high" : "low"}
-                loading="eager"
-                sizes="(max-width: 700px) 48vw, 38vw"
-                src={photo}
-                unoptimized
-              />
-            </figure>
-          );
-        })}
+        <Image
+          alt=""
+          className="landing-cover-image"
+          fill
+          fetchPriority="high"
+          priority
+          sizes="100vw"
+          src="/cover-photo.jpg"
+        />
       </div>
 
       <div className="landing-wash" aria-hidden="true" />

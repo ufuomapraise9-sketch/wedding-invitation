@@ -610,6 +610,12 @@ body.entrance-locked {
   animation: landing-wall-drift 36s ease-in-out infinite alternate;
 }
 
+.landing-cover-image {
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(0.84);
+}
+
 .landing-photo {
   position: absolute;
   overflow: hidden;
@@ -1635,11 +1641,11 @@ a:focus-visible {
 
 .story-section {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.92fr);
   align-items: center;
   gap: clamp(35px, 9vw, 112px);
-  padding-top: 31px;
-  padding-bottom: 125px;
+  padding-top: 52px;
+  padding-bottom: 132px;
 }
 
 .gallery-section {
@@ -2118,16 +2124,18 @@ a:focus-visible {
 .story-image {
   position: relative;
   width: 100%;
-  aspect-ratio: 0.78;
+  aspect-ratio: 0.86;
   overflow: hidden;
+  margin: 0;
   border: 1px solid var(--gold-light);
   background: var(--paper-deep);
-  padding: 7px;
+  padding: 8px;
+  box-shadow: 0 20px 55px rgb(65 36 47 / 9%);
 }
 
 .story-image img {
   object-fit: cover;
-  object-position: center 45%;
+  object-position: center 42%;
 }
 
 .story-photo-placeholder {
@@ -2153,16 +2161,18 @@ a:focus-visible {
 }
 
 .story-copy {
-  max-width: 440px;
-  padding: 25px 0;
+  max-width: 480px;
+  padding: 34px 0;
 }
 
 .story-copy h2 {
-  margin-top: 10px;
+  margin-top: 12px;
+  font-size: clamp(47px, 6vw, 66px);
+  line-height: 0.98;
 }
 
 .story-ornament {
-  margin: 20px 0 16px;
+  margin: 22px 0 19px;
   color: var(--gold);
   font-size: 12px;
   letter-spacing: 0.2em;
@@ -2749,6 +2759,8 @@ a:focus-visible {
 }
 
 .wedding-experience .hero-section {
+  position: relative;
+  isolation: isolate;
   min-height: min(960px, calc(100svh - 74px));
   padding-block: clamp(46px, 7vw, 82px) 38px;
   background:
@@ -2758,7 +2770,34 @@ a:focus-visible {
     linear-gradient(135deg, var(--theme-deep), var(--theme-paper) 55%, var(--theme-deep));
 }
 
+.hero-cover-backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+}
+
+.hero-cover-image {
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.24;
+  filter: saturate(0.72);
+}
+
+.wedding-experience .hero-section::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-paper) 76%, transparent), color-mix(in srgb, var(--theme-paper) 55%, transparent)),
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--theme-paper) 64%, transparent), color-mix(in srgb, var(--theme-deep) 35%, transparent));
+  content: "";
+  pointer-events: none;
+}
+
 .wedding-experience .invitation-card {
+  position: relative;
+  z-index: 1;
   width: min(100%, 650px);
   padding: 15px;
   border-radius: 3px;
@@ -2874,8 +2913,8 @@ a:focus-visible {
 }
 
 .wedding-experience .story-section {
-  padding-top: 20px;
-  padding-bottom: 116px;
+  padding-top: 52px;
+  padding-bottom: 132px;
 }
 
 .wedding-experience .story-image {
@@ -3459,13 +3498,14 @@ a:focus-visible {
 
   .story-section {
     grid-template-columns: 1fr;
-    gap: 24px;
-    padding-bottom: 76px;
+    gap: 25px;
+    padding-top: 28px;
+    padding-bottom: 84px;
   }
 
   .story-image {
-    width: min(100%, 380px);
-    aspect-ratio: 0.78;
+    width: min(100%, 430px);
+    aspect-ratio: 0.9;
     margin-inline: auto;
   }
 

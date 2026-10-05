@@ -32,6 +32,7 @@ export type Wedding = {
   location: string;
   groomPhoto: string | null;
   couplePhoto: string | null;
+  storyPhoto?: string | null;
   gallery: string[];
   events: WeddingEvent[];
   invitationMessage: string;

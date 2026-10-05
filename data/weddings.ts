@@ -1,6 +1,7 @@
 import type { Wedding } from "@/types/wedding";
 
-const samplePhoto = "/couple.jpg";
+const samplePhoto = "/cover-photo.jpg";
+const sampleStoryPhoto = "/couple.jpg";
 
 type PreviousWedding = Pick<
   Wedding,
@@ -27,6 +28,7 @@ function restorePreviousWedding(wedding: PreviousWedding): Wedding {
     hashtag: "",
     groomPhoto: null,
     couplePhoto: samplePhoto,
+    storyPhoto: sampleStoryPhoto,
     gallery: [samplePhoto, samplePhoto, samplePhoto, samplePhoto],
     events: [],
     invitationMessage: "",
@@ -57,7 +59,7 @@ export const weddings: Wedding[] = [
     rsvpName: "Prince Will",
     rsvpPhone: "08134 169733",
     story:
-      "Some of life’s most beautiful moments begin when two hearts find their way to one another. With love as their guide and a future unfolding before them, Sandra and Daniel are beginning a new chapter together—and would be so glad to share this joyful day with you.",
+      "With love as their guide, Sandra and Daniel are beginning a new chapter together. They would be delighted to share this joyful day with you.",
     theme: "champagne",
   }),
   restorePreviousWedding({
@@ -142,10 +144,9 @@ export const weddings: Wedding[] = [
     venue: "The Charismatic City of Christ INT'L",
     location: "62 Upper Lawani Road, opposite Epy Street Junction, Benin City",
     groomPhoto: null,
-    couplePhoto: "/jennifer-princewill-together.jpg",
-    gallery: [
-      "/jennifer-princewill-together.jpg",
-    ],
+    couplePhoto: "/cover-photo.jpg",
+    storyPhoto: "/jennifer-princewill-together.jpg",
+    gallery: ["/cover-photo.jpg"],
     events: [
       {
         id: "traditional-marriage",

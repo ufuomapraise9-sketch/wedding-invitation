@@ -114,6 +114,7 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
 
   const dateLabel = formatWeddingDate(wedding.date);
   const year = wedding.date.slice(0, 4);
+  const storyPhoto = wedding.storyPhoto ?? wedding.groomPhoto ?? wedding.couplePhoto;
   return (
     <div className={`wedding-experience theme-${wedding.theme}`}>
       {showLanding && (
@@ -139,6 +140,16 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
 
         <main>
           <section className="hero-section" id="home" aria-labelledby="invitation-title">
+            <div className="hero-cover-backdrop" aria-hidden="true">
+              <Image
+                alt=""
+                className="hero-cover-image"
+                fill
+                priority
+                sizes="100vw"
+                src="/cover-photo.jpg"
+              />
+            </div>
             <div className="invitation-card">
               <div className="invitation-card-inner">
                 <p className="invitation-monogram">{wedding.monogram}</p>
@@ -226,24 +237,24 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
           </section>
 
           <section className="story-section section-shell reveal" id="story" aria-labelledby="story-title">
-            <div className="story-image">
-              {wedding.groomPhoto ? (
+            <figure className="story-image">
+              {storyPhoto ? (
                 <Image
-                  src={wedding.groomPhoto}
-                  alt={`${wedding.groomName}, in a formal portrait`}
+                  src={storyPhoto}
+                  alt={`${wedding.brideName} and ${wedding.groomName}`}
                   fill
-                  sizes="(max-width: 760px) 86vw, 420px"
+                  sizes="(max-width: 600px) 88vw, (max-width: 900px) 72vw, 520px"
                 />
               ) : (
                 <div className="story-photo-placeholder" role="img"
                   aria-label={`A photograph of ${wedding.brideName} and ${wedding.groomName} will be added here`}>
                   <span className="jp-monogram">{wedding.initials}</span>
-                  <span>More of our story, in photographs</span>
+                  <span>A moment from our journey</span>
                 </div>
               )}
-            </div>
+            </figure>
             <div className="story-copy">
-              <p className="eyebrow">{wedding.hashtag}</p>
+              <p className="eyebrow">{wedding.hashtag || "A little about us"}</p>
               <h2 id="story-title">Our Story</h2>
               <div className="story-ornament" aria-hidden="true">— ✦ —</div>
               <p>{wedding.story}</p>
