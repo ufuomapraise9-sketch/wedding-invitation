@@ -268,6 +268,33 @@ body.entrance-locked {
     linear-gradient(180deg, #f7f1e8 0%, #fbf8f2 42%, #f5eee5 100%);
 }
 
+.platform-cover-background {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 auto;
+  height: clamp(520px, 76vh, 760px);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.platform-cover-background::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(251 248 242 / 35%) 0%,
+    rgb(251 248 242 / 52%) 56%,
+    #f7f1e8 100%
+  );
+  content: "";
+}
+
+.platform-cover-background img {
+  object-fit: cover;
+  object-position: center 38%;
+  opacity: 0.78;
+}
+
 .platform-header {
   position: relative;
   z-index: 1;

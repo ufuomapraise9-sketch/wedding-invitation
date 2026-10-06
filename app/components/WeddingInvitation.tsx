@@ -140,16 +140,18 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
 
         <main>
           <section className="hero-section" id="home" aria-labelledby="invitation-title">
-            <div className="hero-cover-backdrop" aria-hidden="true">
-              <Image
-                alt=""
-                className="hero-cover-image"
-                fill
-                priority
-                sizes="100vw"
-                src="/cover-photo.jpg"
-              />
-            </div>
+            {wedding.couplePhoto && (
+              <div className="hero-cover-backdrop" aria-hidden="true">
+                <Image
+                  alt=""
+                  className="hero-cover-image"
+                  fill
+                  priority
+                  sizes="100vw"
+                  src={wedding.couplePhoto}
+                />
+              </div>
+            )}
             <div className="invitation-card">
               <div className="invitation-card-inner">
                 <p className="invitation-monogram">{wedding.monogram}</p>

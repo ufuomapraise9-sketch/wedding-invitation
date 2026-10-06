@@ -5,6 +5,15 @@ import { formatWeddingDate, weddings } from "@/data/weddings";
 export default function Home() {
   return (
     <main className="platform-home">
+      <div className="platform-cover-background" aria-hidden="true">
+        <Image
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          src="/cover-photo.jpg"
+        />
+      </div>
       <header className="platform-header">
         <Link className="wordmark" href="/" aria-label="Wedding invitations home">
           W<span>&</span>W
@@ -39,19 +48,12 @@ export default function Home() {
                 aria-label={`View ${wedding.brideName} and ${wedding.groomName}'s invitation`}
               >
                 <span className="wedding-preview-image">
-                  {wedding.couplePhoto ? (
-                    <Image
-                      src={wedding.couplePhoto}
-                      alt=""
-                      fill
-                      sizes="(max-width: 600px) 90vw, (max-width: 900px) 44vw, 360px"
-                    />
-                  ) : (
-                    <span className="wedding-preview-placeholder">
-                      <span className="jp-monogram">{wedding.monogram}</span>
-                      <span>{wedding.hashtag}</span>
-                    </span>
-                  )}
+                  <Image
+                    src="/cover-photo.jpg"
+                    alt={`${wedding.brideName} and ${wedding.groomName}`}
+                    fill
+                    sizes="(max-width: 600px) 90vw, (max-width: 900px) 44vw, 360px"
+                  />
                   <span className="wedding-preview-number">{String(index + 1).padStart(2, "0")}</span>
                 </span>
                 <span className="wedding-preview-details">
