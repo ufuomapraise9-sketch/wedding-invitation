@@ -1,8 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { logoutAdmin } from "@/app/admin/actions";
 import type { AdminDashboardData, AdminDashboardWedding } from "@/lib/admin-dashboard-data";
+import TicketScanner from "@/app/components/TicketScanner";
 
 function formatDate(date: string, options?: Intl.DateTimeFormatOptions): string {
   const [year, month, day] = date.slice(0, 10).split("-").map(Number);
@@ -17,7 +19,11 @@ function formatDate(date: string, options?: Intl.DateTimeFormatOptions): string 
   }).format(new Date(year, month - 1, day));
 }
 
-function formatTimestamp(value: string): string {
+function formatTimestamp(value: string | null): string {
+  if (!value) {
+    return "Date unavailable";
+  }
+
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? "Date unavailable"
@@ -25,6 +31,43 @@ function formatTimestamp(value: string): string {
         dateStyle: "medium",
         timeStyle: "short",
       }).format(date);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCheckInSuccess(
+  value: unknown,
+): value is { ok: true; rsvpId: string; guestName: string; guestCount: number; checkedInAt: string } {
+  return (
+    isRecord(value) &&
+    value.ok === true &&
+    value.result === "checked-in" &&
+    typeof value.rsvpId === "string" &&
+    typeof value.guestName === "string" &&
+    typeof value.guestCount === "number" &&
+    typeof value.checkedInAt === "string"
+  );
+}
+
+function isAlreadyCheckedIn(
+  value: unknown,
+): value is {
+  error: "already_checked_in";
+  rsvpId: string;
+  guestName: string;
+  guestCount: number;
+  checkedInAt: string;
+} {
+  return (
+    isRecord(value) &&
+    value.error === "already_checked_in" &&
+    typeof value.rsvpId === "string" &&
+    typeof value.guestName === "string" &&
+    typeof value.guestCount === "number" &&
+    typeof value.checkedInAt === "string"
+  );
 }
 
 function CoupleSelector({
@@ -72,7 +115,13 @@ function CoupleSelector({
   );
 }
 
-function RSVPTable({ wedding }: { wedding: AdminDashboardWedding }) {
+function RSVPTable({
+  wedding,
+  checkInTimestamps,
+}: {
+  wedding: AdminDashboardWedding;
+  checkInTimestamps: Record<string, string>;
+}) {
   if (wedding.rsvps.length === 0) {
     return <p className="admin-empty-state">No RSVP replies have been received for this invitation.</p>;
   }
@@ -83,24 +132,50 @@ function RSVPTable({ wedding }: { wedding: AdminDashboardWedding }) {
         <thead>
           <tr>
             <th scope="col">Guest</th>
+            <th scope="col">Email</th>
+            <th scope="col">Phone</th>
             <th scope="col">Response</th>
             <th scope="col">Guests</th>
-            <th scope="col">Message</th>
+            <th scope="col">Dietary needs</th>
             <th scope="col">Submitted</th>
+            <th scope="col">Check-in</th>
           </tr>
         </thead>
         <tbody>
           {wedding.rsvps.map((rsvp) => (
             <tr key={rsvp.id}>
               <th scope="row">{rsvp.guestName}</th>
+              <td className="admin-contact-cell">
+                {rsvp.guestEmail ? (
+                  <a href={`mailto:${rsvp.guestEmail}`}>{rsvp.guestEmail}</a>
+                ) : (
+                  <span className="admin-muted">—</span>
+                )}
+              </td>
+              <td className="admin-contact-cell">
+                {rsvp.guestPhone ? (
+                  <a href={`tel:${rsvp.guestPhone.replace(/[^\d+]/g, "")}`}>{rsvp.guestPhone}</a>
+                ) : (
+                  <span className="admin-muted">—</span>
+                )}
+              </td>
               <td>
                 <span className={`admin-status${rsvp.attending ? " is-attending" : " is-declined"}`}>
                   {rsvp.attending ? "Attending" : "Not attending"}
                 </span>
               </td>
               <td>{rsvp.attending ? rsvp.guestCount : "—"}</td>
-              <td className="admin-message-cell">{rsvp.message || <span className="admin-muted">—</span>}</td>
+              <td className="admin-message-cell">
+                {rsvp.dietaryNeeds || <span className="admin-muted">—</span>}
+              </td>
               <td>{formatTimestamp(rsvp.createdAt)}</td>
+              <td>
+                {rsvp.attending
+                  ? checkInTimestamps[rsvp.id] || rsvp.checkedInAt
+                    ? `Checked in ${formatTimestamp(checkInTimestamps[rsvp.id] || rsvp.checkedInAt)}`
+                    : "Not checked in"
+                  : "—"}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -151,13 +226,83 @@ function GuestPhotoGallery({
 }
 
 export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
-  const [selectedId, setSelectedId] = useState(data.weddings[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activePhoto, setActivePhoto] = useState<AdminDashboardWedding["photos"][number] | null>(null);
-  const wedding = data.weddings.find((entry) => entry.id === selectedId);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [scannerKey, setScannerKey] = useState(0);
+  const [checkInTimestamps, setCheckInTimestamps] = useState<Record<string, string>>({});
+  const [checkInFeedback, setCheckInFeedback] = useState<{
+    type: "success" | "error" | "already";
+    message: string;
+  } | null>(null);
+  const wedding =
+    data.weddings.find((entry) => entry.id === selectedId) ?? data.weddings[0];
   const rsvps = wedding?.rsvps ?? [];
   const attending = rsvps.filter((rsvp) => rsvp.attending);
   const decliningCount = rsvps.length - attending.length;
   const expectedGuests = attending.reduce((total, rsvp) => total + rsvp.guestCount, 0);
+
+  const handleTicketScan = useCallback(async (ticketToken: string) => {
+    if (!wedding) {
+      setCheckInFeedback({ type: "error", message: "Select a wedding before scanning tickets." });
+      return;
+    }
+
+    setIsCheckingIn(true);
+    setCheckInFeedback(null);
+
+    try {
+      const response = await fetch("/api/admin/check-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketToken, weddingId: wedding.id }),
+      });
+      const result: unknown = await response.json();
+
+      if (response.ok && isCheckInSuccess(result)) {
+        setCheckInTimestamps((timestamps) => ({
+          ...timestamps,
+          [result.rsvpId]: result.checkedInAt,
+        }));
+        const guestLabel = result.guestCount === 1 ? "guest" : "guests";
+        setCheckInFeedback({
+          type: "success",
+          message: `${result.guestName} · ${result.guestCount} ${guestLabel} checked in at ${formatTimestamp(result.checkedInAt)}.`,
+        });
+      } else if (response.status === 409 && isAlreadyCheckedIn(result)) {
+        setCheckInTimestamps((timestamps) => ({
+          ...timestamps,
+          [result.rsvpId]: result.checkedInAt,
+        }));
+        setCheckInFeedback({
+          type: "already",
+          message: `${result.guestName}'s party was already checked in at ${formatTimestamp(result.checkedInAt)}.`,
+        });
+      } else {
+        setCheckInFeedback({
+          type: "error",
+          message:
+            isRecord(result) && typeof result.error === "string"
+              ? result.error
+              : "We couldn't validate this ticket. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error("Unable to submit scanned ticket for check-in:", error);
+      setCheckInFeedback({
+        type: "error",
+        message: "Check-in is temporarily unavailable. Please try again.",
+      });
+    } finally {
+      setIsCheckingIn(false);
+      setScannerKey((key) => key + 1);
+    }
+  }, [wedding]);
+
+  const handleScannerError = useCallback((message: string) => {
+    setCheckInFeedback({ type: "error", message });
+  }, []);
 
   useEffect(() => {
     if (!activePhoto) {
@@ -181,7 +326,12 @@ export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
           <span className="admin-brand-mark" aria-hidden="true">✦</span>
           <span>Wedding <em>admin</em></span>
         </a>
-        <p className="admin-header-note">Private dashboard</p>
+        <div className="admin-header-actions">
+          <p className="admin-header-note">Private dashboard</p>
+          <form action={logoutAdmin}>
+            <button className="admin-logout-button" type="submit">Sign out</button>
+          </form>
+        </div>
       </header>
       <div className="admin-shell">
         <aside className="admin-sidebar">
@@ -191,7 +341,7 @@ export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
           </div>
           <CoupleSelector
             onSelect={setSelectedId}
-            selectedId={selectedId}
+            selectedId={wedding?.id ?? ""}
             weddings={data.weddings}
           />
         </aside>
@@ -228,9 +378,14 @@ export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
               </article>
             </div>
 
-            {!data.rsvpMessagesAvailable && (
+            {!data.rsvpContactFieldsAvailable && (
               <p className="admin-schema-notice" role="status">
-                RSVP messages are unavailable until the message column is added to the Supabase table.
+                RSVP email and phone details are unavailable until the contact columns are added to the Supabase table.
+              </p>
+            )}
+            {!data.rsvpCheckInAvailable && (
+              <p className="admin-schema-notice" role="alert">
+                Ticket check-in is unavailable until the Supabase RSVP migration is applied. Run supabase/wedding-rsvps.sql in the Supabase SQL Editor.
               </p>
             )}
 
@@ -240,8 +395,49 @@ export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
                   <p className="admin-overline">Guest replies</p>
                   <h3 id="admin-rsvp-heading">RSVPs <span>{rsvps.length}</span></h3>
                 </div>
+                <button
+                  className="admin-scan-button"
+                  disabled={isCheckingIn || !data.rsvpCheckInAvailable}
+                  onClick={() => {
+                    setCheckInFeedback(null);
+                    setScannerOpen((open) => !open);
+                  }}
+                  type="button"
+                >
+                  {isCheckingIn ? "Checking in…" : scannerOpen ? "Close scanner" : "Scan tickets"}
+                </button>
               </div>
-              <RSVPTable wedding={wedding} />
+              {scannerOpen && (
+                <div className="admin-ticket-scanner">
+                  {isCheckingIn ? (
+                    <p className="admin-check-in-feedback" role="status">
+                      Checking ticket… The camera will resume when validation is complete.
+                    </p>
+                  ) : (
+                    <TicketScanner
+                      key={scannerKey}
+                      onError={handleScannerError}
+                      onScan={handleTicketScan}
+                    />
+                  )}
+                  <button
+                    className="admin-scan-button admin-scan-stop"
+                    onClick={() => setScannerOpen(false)}
+                    type="button"
+                  >
+                    Stop camera
+                  </button>
+                </div>
+              )}
+              {checkInFeedback && (
+                <p
+                  className={`admin-check-in-feedback is-${checkInFeedback.type}`}
+                  role={checkInFeedback.type === "error" ? "alert" : "status"}
+                >
+                  {checkInFeedback.message}
+                </p>
+              )}
+              <RSVPTable checkInTimestamps={checkInTimestamps} wedding={wedding} />
             </section>
 
             <section className="admin-content-section" aria-labelledby="admin-photos-heading">

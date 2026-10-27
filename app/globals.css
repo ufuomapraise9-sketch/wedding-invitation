@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Montserrat:wght@300;400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Ballet&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Montserrat:wght@300;400;500;600&display=swap");
 
 :root {
   color-scheme: light;
@@ -1332,6 +1332,174 @@ a:focus-visible {
   object-position: center 44%;
 }
 
+.hero-slideshow {
+  position: absolute;
+  inset: 7px;
+  overflow: hidden;
+  background: var(--paper-deep);
+}
+
+.hero-slideshow .hero-slide {
+  z-index: 0;
+  object-fit: cover;
+  object-position: center 42%;
+  opacity: 0;
+  transition: opacity 850ms ease;
+}
+
+.hero-slideshow .hero-slide.is-active {
+  z-index: 1;
+  opacity: 1;
+}
+
+.hero-slideshow::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(21 16 19 / 48%) 0%,
+    rgb(21 16 19 / 18%) 28%,
+    rgb(21 16 19 / 21%) 68%,
+    rgb(21 16 19 / 58%) 100%
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.hero-slideshow-caption {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: block;
+  color: #fffdfc;
+  text-align: center;
+  text-shadow: 0 2px 12px rgb(17 11 12 / 58%);
+  pointer-events: none;
+}
+
+.hero-slideshow-kicker,
+.hero-slideshow-date,
+.hero-slideshow-hashtag,
+.hero-slideshow-name {
+  margin: 0;
+}
+
+.hero-slideshow-kicker {
+  position: absolute;
+  top: 12%;
+  right: 4%;
+  left: 4%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: 500 clamp(7px, 2.5vw, 11px)/1.5 var(--sans);
+  letter-spacing: .3em;
+  text-transform: uppercase;
+}
+
+.hero-slideshow-name {
+  position: absolute;
+  right: 2%;
+  left: 2%;
+  font: 400 clamp(32px, 10vw, 60px)/.98 "Ballet", "Pinyon Script", cursive;
+  letter-spacing: 0;
+  opacity: 0.78;
+  text-shadow: 0 1px 6px rgb(17 11 12 / 34%);
+}
+
+.hero-slideshow-bride {
+  top: 27%;
+}
+
+.hero-slideshow-groom {
+  top: 54%;
+}
+
+.hero-slideshow-heart {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  color: #c8314e;
+  font-size: clamp(24px, 8vw, 44px);
+  line-height: 1;
+  text-shadow: 0 1px 6px rgb(0 0 0 / 42%);
+  transform: translateX(-50%);
+}
+
+.hero-slideshow-date {
+  position: absolute;
+  right: 3%;
+  bottom: 14%;
+  left: 3%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font: 500 clamp(9px, 2.9vw, 14px)/1.5 var(--sans);
+  letter-spacing: .18em;
+}
+
+.hero-slideshow-hashtag {
+  position: absolute;
+  right: 3%;
+  bottom: 5%;
+  left: 3%;
+  color: #f15b79;
+  font: 600 clamp(11px, 3.4vw, 16px)/1.2 var(--sans);
+  letter-spacing: .15em;
+}
+
+.hero-slideshow-controls {
+  position: absolute;
+  z-index: 2;
+  right: 9px;
+  bottom: 9px;
+  left: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: white;
+  font: 500 9px/1 var(--sans);
+  letter-spacing: .1em;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 70%);
+}
+
+.hero-slideshow-controls button {
+  border: 1px solid rgb(255 255 255 / 70%);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgb(32 24 24 / 42%);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+}
+
+.scroll-up-cue {
+  position: fixed;
+  z-index: 100;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-accent, #b2888f) 38%, white);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--theme-paper, #fffaf8) 94%, transparent);
+  box-shadow: 0 5px 22px rgb(49 28 32 / 14%);
+  color: var(--theme-heading, #552735);
+  font: 500 10px/1 var(--sans);
+  letter-spacing: .12em;
+  text-decoration: none;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+
+.scroll-up-cue span {
+  font-size: 15px;
+  line-height: .8;
+}
+
 .couple-photo-placeholder {
   display: flex;
   min-width: 0;
@@ -1710,6 +1878,34 @@ a:focus-visible {
 .gallery-photo img {
   object-fit: cover;
   object-position: center 42%;
+}
+
+.gallery-video-card {
+  grid-column: 1 / -1;
+  width: min(100%, 900px);
+  margin: 24px auto 0;
+  border: 1px solid var(--theme-accent-light, var(--gold-light));
+  background: var(--theme-deep, var(--paper-deep));
+  padding: 6px;
+  box-shadow: 0 12px 30px rgb(65 36 47 / 7%);
+}
+
+.gallery-video-card video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #1d1718;
+  object-fit: contain;
+}
+
+.gallery-video-card figcaption {
+  padding: 12px 8px 5px;
+  color: var(--theme-muted, var(--ink-soft));
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .guest-memories-section {
@@ -2205,12 +2401,16 @@ a:focus-visible {
   letter-spacing: 0.2em;
 }
 
-.story-copy > p:last-child {
-  margin: 0;
+.story-body p {
+  margin: 0 0 1.05em;
   color: var(--ink-soft);
   font-family: var(--serif);
   font-size: clamp(18px, 2.4vw, 22px);
   line-height: 1.7;
+}
+
+.story-body p:last-child {
+  margin-bottom: 0;
 }
 
 .ceremony-section {
@@ -2422,6 +2622,18 @@ a:focus-visible {
   font-style: italic;
 }
 
+.rsvp-contact-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px;
+  width: min(100%, 820px);
+  margin: 21px auto 0;
+}
+
+.rsvp-contact {
+  min-width: 0;
+}
+
 .rsvp-name {
   margin: 2px 0 0;
   color: #654d3a;
@@ -2454,7 +2666,7 @@ a:focus-visible {
   flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 16px;
 }
 
 .rsvp-form-wrap {
@@ -2630,6 +2842,42 @@ a:focus-visible {
   color: #8a3e32;
 }
 
+.rsvp-ticket {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 26px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  background: #fffdfa;
+  text-align: center;
+}
+
+.rsvp-ticket h3,
+.rsvp-ticket p {
+  margin: 0;
+}
+
+.rsvp-ticket h3 {
+  color: #654d3a;
+  font-family: var(--serif);
+  font-size: 23px;
+  font-weight: 500;
+}
+
+.rsvp-ticket p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.rsvp-ticket img {
+  width: min(100%, 240px);
+  height: auto;
+  padding: 8px;
+  background: #fff;
+}
+
 .rsvp-submit {
   width: 100%;
   cursor: pointer;
@@ -2710,36 +2958,6 @@ a:focus-visible {
   font-weight: 500;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-}
-
-.invitation-share-button {
-  margin-top: 25px;
-  border-color: var(--theme-accent, var(--gold));
-  color: var(--theme-heading, var(--ink));
-  background: color-mix(in srgb, var(--theme-paper, var(--paper-light)) 76%, white);
-  cursor: pointer;
-}
-
-.invitation-share-button:hover {
-  border-color: var(--theme-heading, var(--ink));
-  color: var(--theme-paper, var(--paper-light));
-  background: var(--theme-heading, var(--ink));
-}
-
-.share-icon {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.6;
-}
-
-.invitation-share-feedback {
-  min-height: 18px;
-  margin: 8px 0 0;
-  color: var(--theme-heading, var(--ink-soft));
-  font-size: 10px;
 }
 
 .site-footer {
@@ -2881,6 +3099,52 @@ a:focus-visible {
 .wedding-experience .couple-photo-frame img {
   object-fit: cover;
   object-position: center 42%;
+}
+
+/* The opening invitation is arranged as a single poster, like the supplied reference. */
+.wedding-experience .invitation-card {
+  width: min(100%, 470px);
+  aspect-ratio: 0.68;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wedding-experience .invitation-card-inner {
+  position: absolute;
+  inset: 8px;
+  padding: 0;
+}
+
+.wedding-experience .invitation-card-inner > :not(.couple-photo) {
+  display: none;
+}
+
+.wedding-experience .couple-photo {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+}
+
+.wedding-experience .couple-photo-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border: 0;
+  padding: 0;
+}
+
+.wedding-experience .hero-slideshow {
+  inset: 0;
+}
+
+.wedding-experience .photo-caption {
+  display: none;
+}
+
+.hero-slideshow-heading {
+  margin: 0;
 }
 
 .wedding-experience .photo-caption {
@@ -3291,7 +3555,7 @@ a:focus-visible {
     padding-bottom: 91px;
   }
 
-  .story-copy > p:last-child {
+  .story-body p {
     font-size: 19px;
   }
 
@@ -3301,6 +3565,11 @@ a:focus-visible {
 
   .rsvp-section {
     padding-block: 89px;
+  }
+
+  .rsvp-contact-list {
+    grid-template-columns: 1fr;
+    gap: 23px;
   }
 }
 
@@ -3547,7 +3816,7 @@ a:focus-visible {
     text-align: center;
   }
 
-  .story-copy > p:last-child {
+  .story-body p {
     font-size: 20px;
   }
 
@@ -3717,6 +3986,81 @@ a:focus-visible {
   font-size: 11px;
 }
 
+.admin-locked-card .admin-locked-card-note {
+  margin-top: 22px;
+  padding-top: 19px;
+  border-top: 1px solid #eadde0;
+  color: #8b7379;
+  font-size: 11px;
+}
+
+.admin-auth-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+  text-align: left;
+}
+
+.admin-auth-form label {
+  color: #632538;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-auth-form input {
+  width: 100%;
+  min-height: 46px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid #d9c7c8;
+  border-radius: 2px;
+  background: #fffefa;
+  color: #3f3b38;
+  font: inherit;
+}
+
+.admin-auth-form input:focus-visible {
+  outline: 2px solid #986d6e;
+  outline-offset: 2px;
+}
+
+.admin-auth-form button,
+.admin-logout-button {
+  min-height: 42px;
+  padding: 10px 18px;
+  border: 1px solid #632538;
+  border-radius: 2px;
+  background: #632538;
+  color: #fffefa;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.admin-auth-form button:hover:not(:disabled),
+.admin-logout-button:hover {
+  background: transparent;
+  color: #632538;
+}
+
+.admin-auth-form button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.admin-auth-error {
+  margin: 2px 0 8px !important;
+  color: #9b2f32 !important;
+  font-size: 12px !important;
+  text-align: left;
+}
+
 .admin-page {
   min-height: 100svh;
   background: #f7f5f1;
@@ -3762,6 +4106,18 @@ a:focus-visible {
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.admin-logout-button {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 9px;
 }
 
 .admin-shell {
@@ -3965,8 +4321,10 @@ a:focus-visible {
 
 .admin-section-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 15px;
 }
 
@@ -3993,6 +4351,80 @@ a:focus-visible {
   font-family: var(--sans);
   font-size: 9px;
   font-weight: 600;
+}
+
+.admin-scan-button {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid #745b47;
+  background: #fffdfa;
+  color: #654d3a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+}
+
+.admin-scan-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.admin-ticket-scanner {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-bottom: 15px;
+  padding: 16px;
+  border: 1px solid #e8e1d8;
+  background: #fffdfa;
+}
+
+.admin-ticket-camera {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(100%, 520px);
+}
+
+.admin-ticket-camera video {
+  width: 100%;
+  max-height: 360px;
+  aspect-ratio: 4 / 3;
+  background: #201b18;
+  object-fit: cover;
+}
+
+.admin-ticket-camera p {
+  margin: 0;
+  color: #847a71;
+  font-size: 11px;
+  text-align: center;
+}
+
+.admin-check-in-feedback {
+  margin: 0 0 15px;
+  padding: 11px 14px;
+  border: 1px solid #e8e1d8;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.admin-check-in-feedback.is-success {
+  border-color: #cad9c6;
+  background: #f3f7f1;
+  color: #466344;
+}
+
+.admin-check-in-feedback.is-already {
+  border-color: #ead4ba;
+  background: #fff8ed;
+  color: #755633;
+}
+
+.admin-check-in-feedback.is-error {
+  border-color: #e6c9c4;
+  background: #fff5f3;
+  color: #8a3e32;
 }
 
 .admin-table-wrap {
@@ -4349,6 +4781,12 @@ a:focus-visible {
 
   .admin-rsvp-table tbody td:nth-child(5)::before {
     content: "Submitted: ";
+    color: #8a7e73;
+    font-weight: 600;
+  }
+
+  .admin-rsvp-table tbody td:nth-child(8)::before {
+    content: "Check-in: ";
     color: #8a7e73;
     font-weight: 600;
   }

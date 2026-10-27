@@ -11,6 +11,44 @@ const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const MAX_TOTAL_SIZE = 25 * 1024 * 1024;
 const MAX_REQUEST_SIZE = 26 * 1024 * 1024;
 
+class RequestBodyTooLargeError extends Error {}
+
+async function readLimitedBody(request: Request, maxBytes: number): Promise<ArrayBuffer> {
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return new ArrayBuffer(0);
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel();
+        throw new RequestBodyTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body.buffer;
+}
+
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
@@ -19,7 +57,7 @@ function verifySameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
 
   if (!origin) {
-    return true;
+    return false;
   }
 
   try {
@@ -100,8 +138,11 @@ function storageUnavailableResponse(error: unknown) {
   }
 
   if (error instanceof PhotoStorageConfigurationError) {
-    console.error("Guest photo uploads have an incomplete or invalid Supabase configuration.");
-    return Response.json({ error: error.message }, { status: 503 });
+    console.error("Guest photo uploads have an incomplete or invalid Supabase configuration:", error.message);
+    return Response.json(
+      { error: "Photo uploads are temporarily unavailable. Please try again later." },
+      { status: 503 },
+    );
   }
 
   console.error("Wedding photo storage request failed:", error);
@@ -137,21 +178,28 @@ export async function POST(request: Request, { params }: RouteContext) {
     return Response.json({ error: "Invalid request origin." }, { status: 403 });
   }
 
-  if (!request.headers.get("content-type")?.includes("multipart/form-data")) {
+  const contentType = request.headers.get("content-type");
+  if (contentType?.split(";", 1)[0].trim().toLowerCase() !== "multipart/form-data") {
     return Response.json({ error: "Please upload photos using the wedding photo form." }, { status: 415 });
   }
 
   const contentLength = Number(request.headers.get("content-length") ?? 0);
 
-  if (contentLength > MAX_REQUEST_SIZE) {
+  if (!Number.isSafeInteger(contentLength) || contentLength < 0 || contentLength > MAX_REQUEST_SIZE) {
     return Response.json({ error: "Please upload smaller photos; the total upload limit is 25 MB." }, { status: 413 });
   }
 
   let formData: FormData;
 
   try {
-    formData = await request.formData();
-  } catch {
+    const body = await readLimitedBody(request, MAX_REQUEST_SIZE);
+    formData = await new Response(body, {
+      headers: { "Content-Type": contentType },
+    }).formData();
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return Response.json({ error: "Please upload smaller photos; the total upload limit is 25 MB." }, { status: 413 });
+    }
     return Response.json({ error: "We couldn't read those files. Please select them and try again." }, { status: 400 });
   }
 

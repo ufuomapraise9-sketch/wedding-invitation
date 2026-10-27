@@ -218,7 +218,12 @@ export default function GuestPhotoSharing({ weddingId }: { weddingId: string }) 
   }
 
   function uploadPhotos() {
-    if (selectedPhotos.length === 0 || isUploading || !storageAvailable) {
+    if (isUploading || !storageAvailable) {
+      return;
+    }
+
+    if (selectedPhotos.length === 0) {
+      photoInput.current?.click();
       return;
     }
 
@@ -410,11 +415,15 @@ export default function GuestPhotoSharing({ weddingId }: { weddingId: string }) 
 
           <button
             className="button button-primary guest-submit-button"
-            disabled={!storageAvailable || isUploading || selectedPhotos.length === 0}
+            disabled={!storageAvailable || isUploading}
             onClick={uploadPhotos}
             type="button"
           >
-            {isUploading ? "Uploading…" : "Upload Photos"}
+            {isUploading
+              ? "Uploading…"
+              : selectedPhotos.length === 0
+                ? "Choose Photos"
+                : "Upload Photos"}
             {!isUploading && <span aria-hidden="true">↗</span>}
           </button>
         </div>

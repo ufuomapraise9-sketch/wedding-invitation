@@ -34,6 +34,9 @@ export type Wedding = {
   couplePhoto: string | null;
   storyPhoto?: string | null;
   gallery: string[];
+  openingSlideshowPhotos?: string[];
+  galleryVideo?: string | null;
+  backgroundMusic?: string | null;
   events: WeddingEvent[];
   invitationMessage: string;
   bibleVerse: string;
@@ -41,6 +44,7 @@ export type Wedding = {
   groomParents: string[];
   rsvpName: string;
   rsvpPhone: string;
+  additionalRsvpContacts?: { name: string; phone: string }[];
   rsvpEmail: string;
   rsvpMaxGuests: number;
   childrenInvited: boolean;

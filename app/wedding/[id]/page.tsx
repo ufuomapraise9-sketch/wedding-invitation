@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, ResolvingMetadata } from "next";
 import { notFound } from "next/navigation";
 import WeddingInvitation from "@/app/components/WeddingInvitation";
 import { formatWeddingDate, getWeddingById, weddings } from "@/data/weddings";
@@ -11,7 +11,10 @@ export function generateStaticParams() {
   return weddings.map(({ id }) => ({ id }));
 }
 
-export async function generateMetadata({ params }: WeddingPageProps): Promise<Metadata> {
+export async function generateMetadata(
+  { params }: WeddingPageProps,
+  parent: ResolvingMetadata,
+): Promise<Metadata> {
   const { id } = await params;
   const wedding = getWeddingById(id);
 
@@ -19,9 +22,25 @@ export async function generateMetadata({ params }: WeddingPageProps): Promise<Me
     return { title: "Wedding invitation not found" };
   }
 
+  const title = `${wedding.brideName} & ${wedding.groomName} | Wedding Invitation`;
+  const description = "JPs2026..... please follow the link to process your invitation";
+  const parentMetadata = await parent;
+
   return {
-    title: `${wedding.brideName} & ${wedding.groomName} | Wedding Invitation`,
-    description: `Celebrate with ${wedding.brideName} and ${wedding.groomName} on ${formatWeddingDate(wedding.date)}. ${wedding.hashtag}`,
+    title,
+    description,
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      images: parentMetadata.openGraph?.images,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: parentMetadata.twitter?.images,
+    },
   };
 }
 

@@ -1,6 +1,8 @@
 "use client";
 
-import { type FormEvent, useRef, useState } from "react";
+import Image from "next/image";
+import QRCode from "qrcode";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { Wedding } from "@/types/wedding";
 
 type SubmissionStatus = "idle" | "sending" | "success" | "error";
@@ -14,15 +16,38 @@ function isErrorResponse(value: unknown): value is { error: string } {
   );
 }
 
-function isRsvpWithoutMessage(value: unknown): value is { ok: true; messageSaved: false } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "ok" in value &&
-    value.ok === true &&
-    "messageSaved" in value &&
-    value.messageSaved === false
-  );
+function getTicketToken(value: unknown): string | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("ticketToken" in value) ||
+    typeof value.ticketToken !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value.ticketToken,
+    )
+  ) {
+    return null;
+  }
+
+  return value.ticketToken;
+}
+
+function getRsvpSaveNotice(value: unknown): string | null {
+  if (typeof value !== "object" || value === null || !("ok" in value) || value.ok !== true) {
+    return null;
+  }
+
+  const missingDetails: string[] = [];
+  if ("emailSaved" in value && value.emailSaved === false) {
+    missingDetails.push("your email address");
+  }
+  if ("messageSaved" in value && value.messageSaved === false) {
+    missingDetails.push("your optional message");
+  }
+
+  return missingDetails.length > 0
+    ? `Your RSVP was saved, but ${missingDetails.join(" and ")} could not be recorded. Please contact your RSVP host to share them.`
+    : null;
 }
 
 function getPhoneLinks(phone: string) {
@@ -49,6 +74,7 @@ export default function RSVP({
     | "groomName"
     | "rsvpName"
     | "rsvpPhone"
+    | "additionalRsvpContacts"
     | "rsvpEmail"
     | "rsvpMaxGuests"
     | "childrenInvited"
@@ -57,10 +83,44 @@ export default function RSVP({
   const [attendance, setAttendance] = useState<"yes" | "no" | null>(null);
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>("idle");
   const [submissionMessage, setSubmissionMessage] = useState("");
+  const [ticketToken, setTicketToken] = useState<string | null>(null);
+  const [ticketQrCode, setTicketQrCode] = useState<string | null>(null);
+  const [ticketQrError, setTicketQrError] = useState(false);
   const submissionInProgress = useRef(false);
-  const phoneLinks = getPhoneLinks(wedding.rsvpPhone);
-  const invitationMessage = `Hello ${wedding.rsvpName}, I would love to RSVP for ${wedding.brideName} and ${wedding.groomName}'s wedding.`;
+  const rsvpContacts = [
+    { name: wedding.rsvpName, phone: wedding.rsvpPhone },
+    ...(wedding.additionalRsvpContacts ?? []),
+  ];
   const maxGuests = Math.min(wedding.rsvpMaxGuests, 10);
+
+  useEffect(() => {
+    if (!ticketToken) {
+      return;
+    }
+
+    let isCurrent = true;
+    QRCode.toDataURL(ticketToken, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 240,
+    }).then(
+      (dataUrl) => {
+        if (isCurrent) {
+          setTicketQrCode(dataUrl);
+        }
+      },
+      (error: unknown) => {
+        console.error("Unable to generate the RSVP ticket QR code:", error);
+        if (isCurrent) {
+          setTicketQrError(true);
+        }
+      },
+    );
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [ticketToken]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,6 +136,13 @@ export default function RSVP({
 
     if (typeof name !== "string" || name.trim().length === 0) {
       setSubmissionMessage("Please enter your name so the couple knows who is replying.");
+      setSubmissionStatus("error");
+      return;
+    }
+
+    const phone = formData.get("phone");
+    if (typeof phone !== "string" || phone.trim().length === 0) {
+      setSubmissionMessage("Please enter your phone number. It is required to prevent duplicate RSVPs.");
       setSubmissionStatus("error");
       return;
     }
@@ -97,6 +164,9 @@ export default function RSVP({
 
     submissionInProgress.current = true;
     setSubmissionMessage("");
+    setTicketToken(null);
+    setTicketQrCode(null);
+    setTicketQrError(false);
     setSubmissionStatus("sending");
 
     try {
@@ -106,6 +176,8 @@ export default function RSVP({
         body: JSON.stringify({
           weddingId: wedding.id,
           name,
+          email: formData.get("email"),
+          phone: formData.get("phone"),
           attending,
           guestCount,
           dietaryNeeds: formData.get("dietaryNeeds"),
@@ -127,10 +199,12 @@ export default function RSVP({
 
       form.reset();
       setAttendance(null);
+      const newTicketToken = attending === "yes" ? getTicketToken(result) : null;
+      setTicketToken(newTicketToken);
       setSubmissionMessage(
-        isRsvpWithoutMessage(result)
-          ? "Your RSVP was saved, but your optional note could not be recorded. Please share it with your RSVP contact."
-          : "",
+        (attending === "yes" && !newTicketToken
+          ? "Your RSVP was saved, but we couldn't issue your entry ticket. Please contact your RSVP host."
+          : getRsvpSaveNotice(result)) ?? "",
       );
       setSubmissionStatus("success");
     } catch (error) {
@@ -150,20 +224,31 @@ export default function RSVP({
       <h2 id="rsvp-title">We would love to<br />celebrate with you</h2>
       <div className="rsvp-ornament" aria-hidden="true">✦</div>
       <p className="rsvp-kindly">Kindly RSVP to</p>
-      <p className="rsvp-name">{wedding.rsvpName}</p>
-      <a className="rsvp-phone" href={phoneLinks.telephone}>{wedding.rsvpPhone}</a>
-      <a className="rsvp-email" href={`mailto:${wedding.rsvpEmail}`}>{wedding.rsvpEmail}</a>
-      <div className="rsvp-actions">
-        <a className="button button-primary" href={phoneLinks.telephone}>Call to RSVP</a>
-        <a
-          className="button button-whatsapp"
-          href={`https://wa.me/${phoneLinks.whatsapp}?text=${encodeURIComponent(invitationMessage)}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          RSVP on WhatsApp <span aria-hidden="true">↗</span>
-        </a>
+      <div className="rsvp-contact-list" aria-label="RSVP contacts">
+        {rsvpContacts.map((contact) => {
+          const phoneLinks = getPhoneLinks(contact.phone);
+          const invitationMessage = `Hello ${contact.name}, I would love to RSVP for ${wedding.brideName} and ${wedding.groomName}'s wedding.`;
+
+          return (
+            <div className="rsvp-contact" key={`${contact.name}-${contact.phone}`}>
+              <p className="rsvp-name">{contact.name}</p>
+              <a className="rsvp-phone" href={phoneLinks.telephone}>{contact.phone}</a>
+              <div className="rsvp-actions">
+                <a className="button button-primary" href={phoneLinks.telephone}>Call to RSVP</a>
+                <a
+                  className="button button-whatsapp"
+                  href={`https://wa.me/${phoneLinks.whatsapp}?text=${encodeURIComponent(invitationMessage)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  RSVP on WhatsApp <span aria-hidden="true">↗</span>
+                </a>
+              </div>
+            </div>
+          );
+        })}
       </div>
+      <a className="rsvp-email" href={`mailto:${wedding.rsvpEmail}`}>{wedding.rsvpEmail}</a>
       <div className="rsvp-form-wrap">
         <div className="rsvp-form-heading">
           <span className="rsvp-form-rule" aria-hidden="true" />
@@ -172,6 +257,7 @@ export default function RSVP({
           <p>
             Please reply for up to {maxGuests} guests per invitation.
             {wedding.childrenInvited ? " Children are welcome." : " Children are not included."}
+            {" "}Your phone number is required to prevent duplicate RSVPs.
           </p>
         </div>
         <form className="rsvp-form" noValidate onSubmit={handleSubmit}>
@@ -183,6 +269,27 @@ export default function RSVP({
               name="name"
               placeholder="First and last name"
               required
+            />
+          </label>
+          <label className="form-field">
+            <span>Email address <span className="field-optional">(optional)</span></span>
+            <input
+              autoComplete="email"
+              maxLength={254}
+              name="email"
+              placeholder="you@example.com"
+              type="email"
+            />
+          </label>
+          <label className="form-field">
+            <span>Phone number</span>
+            <input
+              autoComplete="tel"
+              maxLength={40}
+              name="phone"
+              placeholder="Your phone number"
+              required
+              type="tel"
             />
           </label>
           <fieldset className="attendance-fieldset">
@@ -268,6 +375,30 @@ export default function RSVP({
             {submissionStatus === "sending" ? "Sending…" : "Send RSVP"}
           </button>
         </form>
+        {ticketToken && (
+          <div className="rsvp-ticket" aria-label="Your entry ticket">
+            <h3>Your entry ticket</h3>
+            <p>Show this QR code at the door to check in your party.</p>
+            {ticketQrCode ? (
+              <>
+                <Image
+                  alt="Private QR code for your wedding entry ticket"
+                  height={240}
+                  src={ticketQrCode}
+                  unoptimized
+                  width={240}
+                />
+                <a className="button button-primary" download="wedding-entry-ticket.png" href={ticketQrCode}>
+                  Save ticket
+                </a>
+              </>
+            ) : ticketQrError ? (
+              <p role="alert">We couldn&apos;t create your ticket QR code. Please contact your RSVP host.</p>
+            ) : (
+              <p role="status">Preparing your ticket…</p>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

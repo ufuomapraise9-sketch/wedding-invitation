@@ -43,7 +43,7 @@ function getStorageConfig(): StorageConfig {
 
   if (!projectUrl || !serviceRoleKey) {
     throw new PhotoStorageConfigurationError(
-      "Supabase photo storage needs both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Add the missing value to .env.local, then restart the app.",
+      "Supabase photo storage needs both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the server environment. Restart or redeploy the app after setting them.",
     );
   }
 
@@ -53,17 +53,20 @@ function getStorageConfig(): StorageConfig {
     parsedUrl = new URL(projectUrl);
   } catch {
     throw new PhotoStorageConfigurationError(
-      "SUPABASE_URL must be a valid Supabase project URL. Check .env.local, then restart the app.",
+      "SUPABASE_URL must be a valid Supabase project URL. Check the server environment, then restart or redeploy the app.",
     );
   }
 
   if (
     (parsedUrl.protocol !== "https:" && parsedUrl.hostname !== "localhost" && parsedUrl.hostname !== "127.0.0.1") ||
     parsedUrl.username ||
-    parsedUrl.password
+    parsedUrl.password ||
+    parsedUrl.pathname !== "/" ||
+    parsedUrl.search ||
+    parsedUrl.hash
   ) {
     throw new PhotoStorageConfigurationError(
-      "SUPABASE_URL must use HTTPS and must not contain credentials. Check .env.local, then restart the app.",
+      "SUPABASE_URL must use HTTPS and must not contain credentials. Check the server environment, then restart or redeploy the app.",
     );
   }
 

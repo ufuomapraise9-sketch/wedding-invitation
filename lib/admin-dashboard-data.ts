@@ -15,10 +15,13 @@ type RsvpRow = {
   id: string;
   wedding_id: string;
   guest_name: string;
+  email?: string | null;
+  phone?: string | null;
   attending: boolean;
   guest_count: number;
-  message: string;
+  dietary_needs: string | null;
   created_at: string;
+  checked_in_at?: string | null;
 };
 
 type PhotoRow = {
@@ -39,10 +42,13 @@ export type AdminDashboardPhoto = {
 export type AdminDashboardRsvp = {
   id: string;
   guestName: string;
+  guestEmail: string | null;
+  guestPhone: string | null;
   attending: boolean;
   guestCount: number;
-  message: string;
-  createdAt: string;
+  dietaryNeeds: string | null;
+  createdAt: string | null;
+  checkedInAt: string | null;
 };
 
 export type AdminDashboardWedding = {
@@ -59,7 +65,8 @@ export type AdminDashboardWedding = {
 
 export type AdminDashboardData = {
   weddings: AdminDashboardWedding[];
-  rsvpMessagesAvailable: boolean;
+  rsvpContactFieldsAvailable: boolean;
+  rsvpCheckInAvailable: boolean;
 };
 
 function getSupabaseConfig(): SupabaseConfig {
@@ -97,20 +104,25 @@ async function fetchRows(
   config: SupabaseConfig,
   table: string,
   columns: string,
+  orderBy: string | null = "created_at.desc",
+  weddingId?: string,
 ): Promise<unknown[]> {
   const rows: unknown[] = [];
 
   for (let offset = 0; ; offset += PAGE_SIZE) {
-    const query = new URLSearchParams({
-      select: columns,
-      order: "created_at.desc",
-    });
+    const query = new URLSearchParams({ select: columns });
+    if (orderBy) {
+      query.set("order", orderBy);
+    }
+    if (weddingId) {
+      query.set("wedding_id", `eq.${weddingId}`);
+    }
     const response = await fetch(
       `${config.projectUrl}/rest/v1/${table}?${query.toString()}`,
       {
         headers: {
           apikey: config.serviceRoleKey,
-          Authorization: `******`,
+          Authorization: `Bearer ${config.serviceRoleKey}`,
           Range: `${offset}-${offset + PAGE_SIZE - 1}`,
           "Range-Unit": "items",
         },
@@ -119,14 +131,36 @@ async function fetchRows(
       },
     );
 
+    const responseBody = await response.text();
+
     if (!response.ok) {
-      const details = (await response.text()).slice(0, 500);
+      if (process.env.NODE_ENV === "development") {
+        console.info("[admin-diagnostics] Supabase REST response", {
+          table,
+          status: response.status,
+          contentRange: response.headers.get("content-range"),
+          responseBodyLength: responseBody.length,
+          parsedArrayLength: null,
+        });
+      }
+
+      const details = responseBody.slice(0, 500);
       throw new Error(
         `Supabase admin ${table} lookup failed with HTTP ${response.status}: ${details}`,
       );
     }
 
-    const page: unknown = await response.json();
+    const page: unknown = JSON.parse(responseBody);
+    if (process.env.NODE_ENV === "development") {
+      console.info("[admin-diagnostics] Supabase REST response", {
+        table,
+        status: response.status,
+        contentRange: response.headers.get("content-range"),
+        responseBodyLength: responseBody.length,
+        parsedArrayLength: Array.isArray(page) ? page.length : null,
+      });
+    }
+
     if (!Array.isArray(page)) {
       throw new Error(`Supabase returned invalid ${table} records.`);
     }
@@ -150,9 +184,22 @@ function isRsvpRow(value: unknown): value is RsvpRow {
     typeof value.guest_name === "string" &&
     typeof value.attending === "boolean" &&
     typeof value.guest_count === "number" &&
-    (typeof value.message === "string" || value.message === undefined) &&
-    typeof value.created_at === "string"
+    (typeof value.dietary_needs === "string" || value.dietary_needs === null) &&
+    (typeof value.email === "string" ||
+      value.email === null ||
+      value.email === undefined) &&
+    (typeof value.phone === "string" ||
+      value.phone === null ||
+      value.phone === undefined) &&
+    typeof value.created_at === "string" &&
+    (typeof value.checked_in_at === "string" ||
+      value.checked_in_at === null ||
+      value.checked_in_at === undefined)
   );
+}
+
+function areRsvpRowsForWedding(value: unknown[], weddingId: string): value is RsvpRow[] {
+  return value.every((row) => isRsvpRow(row) && row.wedding_id === weddingId);
 }
 
 function isPhotoRow(value: unknown): value is PhotoRow {
@@ -166,12 +213,23 @@ function isPhotoRow(value: unknown): value is PhotoRow {
   );
 }
 
-function isMissingMessageColumn(error: unknown): boolean {
-  return (
-    error instanceof Error &&
+function arePhotoRowsForWedding(value: unknown[], weddingId: string): value is PhotoRow[] {
+  return value.every((row) => isPhotoRow(row) && row.wedding_id === weddingId);
+}
+
+function isMissingRsvpColumn(error: unknown, column: string): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const isSchemaCacheError =
     error.message.includes('"code":"PGRST204"') &&
-    error.message.includes("Could not find the 'message' column of 'wedding_rsvps'")
-  );
+    error.message.includes(`Could not find the '${column}' column of '${RSVP_TABLE}'`);
+  const isPostgresUndefinedColumnError =
+    error.message.includes('"code":"42703"') &&
+    error.message.includes(`${RSVP_TABLE}.${column}`);
+
+  return isSchemaCacheError || isPostgresUndefinedColumnError;
 }
 
 function photoUrl(projectUrl: string, storagePath: string): string {
@@ -183,52 +241,109 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   await requireAdminAuthentication();
   const config = getSupabaseConfig();
 
-  let rsvpRows: unknown[];
-  let rsvpMessagesAvailable = true;
+  const weddingRows = await Promise.all(
+    weddings.map(async (wedding) => {
+      let optionalRsvpColumns = ["checked_in_at", "email", "phone"];
+      let rsvpContactFieldsAvailable = true;
+      let rsvpCheckInAvailable = true;
+      const [rsvpRows, photoRows] = await Promise.all([
+        (async () => {
+          while (true) {
+            try {
+              return await fetchRows(
+                config,
+                RSVP_TABLE,
+                [
+                  "id",
+                  "wedding_id",
+                  "guest_name",
+                  "attending",
+                  "guest_count",
+                  "dietary_needs",
+                  "created_at",
+                  ...optionalRsvpColumns,
+                ].join(","),
+                "created_at.desc",
+                wedding.id,
+              );
+            } catch (error) {
+              const missingColumn = optionalRsvpColumns.find((column) =>
+                isMissingRsvpColumn(error, column),
+              );
 
-  try {
-    rsvpRows = await fetchRows(
-      config,
-      RSVP_TABLE,
-      "id,wedding_id,guest_name,attending,guest_count,message,created_at",
-    );
-  } catch (error) {
-    if (!isMissingMessageColumn(error)) {
-      throw error;
+              if (!missingColumn) {
+                throw error;
+              }
+
+              optionalRsvpColumns = optionalRsvpColumns.filter((column) => column !== missingColumn);
+              if (missingColumn === "checked_in_at") {
+                rsvpCheckInAvailable = false;
+              } else {
+                rsvpContactFieldsAvailable = false;
+              }
+
+              console.warn(
+                `Admin dashboard is loading RSVP records without ${missingColumn} because that column is not present in the Supabase schema cache.`,
+              );
+            }
+          }
+        })(),
+        fetchRows(
+          config,
+          PHOTO_TABLE,
+          "id,wedding_id,guest_name,storage_path,created_at",
+          "created_at.desc",
+          wedding.id,
+        ),
+      ]);
+
+      if (
+        !areRsvpRowsForWedding(rsvpRows, wedding.id) ||
+        !arePhotoRowsForWedding(photoRows, wedding.id)
+      ) {
+        throw new Error(`Supabase returned invalid admin dashboard records for wedding ${wedding.id}.`);
+      }
+
+      return {
+        wedding,
+        rsvpContactFieldsAvailable,
+        rsvpCheckInAvailable,
+        rsvps: rsvpRows,
+        photos: photoRows,
+      };
+    }),
+  );
+
+  const dashboardWeddings = weddingRows.map(({ wedding, rsvps, photos }) => {
+    const dashboardRsvps = rsvps.map((row) => ({
+          id: row.id,
+          guestName: row.guest_name,
+          guestEmail: row.email ?? null,
+          guestPhone: row.phone ?? null,
+          attending: row.attending,
+          guestCount: row.guest_count,
+          dietaryNeeds: row.dietary_needs,
+          createdAt: row.created_at,
+          checkedInAt: row.checked_in_at ?? null,
+        }));
+    const dashboardPhotos = photos.map((row) => ({
+          id: row.id,
+          guestName: row.guest_name,
+          url: photoUrl(config.projectUrl, row.storage_path),
+          createdAt: row.created_at,
+        }));
+
+    if (process.env.NODE_ENV === "development") {
+      console.info("[admin-diagnostics] wedding data counts", {
+        weddingId: wedding.id,
+        queriedRsvpCount: rsvps.length,
+        queriedPhotoCount: photos.length,
+        returnedRsvpCount: dashboardRsvps.length,
+        returnedPhotoCount: dashboardPhotos.length,
+      });
     }
 
-    console.warn(
-      "Admin dashboard is loading RSVP records without messages because the message column is not present in the Supabase schema cache.",
-    );
-    rsvpMessagesAvailable = false;
-    rsvpRows = await fetchRows(
-      config,
-      RSVP_TABLE,
-      "id,wedding_id,guest_name,attending,guest_count,created_at",
-    );
-  }
-
-  const photoRows = await fetchRows(
-    config,
-    PHOTO_TABLE,
-    "id,wedding_id,guest_name,storage_path,created_at",
-  );
-
-  if (!rsvpRows.every(isRsvpRow) || !photoRows.every(isPhotoRow)) {
-    throw new Error("Supabase returned invalid admin dashboard records.");
-  }
-
-  const knownWeddingIds = new Set(weddings.map((wedding) => wedding.id));
-  const filteredRsvps = rsvpRows.filter(
-    (row): row is RsvpRow => knownWeddingIds.has(row.wedding_id),
-  );
-  const filteredPhotos = photoRows.filter(
-    (row): row is PhotoRow => knownWeddingIds.has(row.wedding_id),
-  );
-
-  return {
-    rsvpMessagesAvailable,
-    weddings: weddings.map((wedding) => ({
+    return {
       id: wedding.id,
       brideName: wedding.brideName,
       groomName: wedding.groomName,
@@ -236,24 +351,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       time: wedding.time,
       venue: wedding.venue,
       couplePhoto: wedding.couplePhoto,
-      rsvps: filteredRsvps
-        .filter((row) => row.wedding_id === wedding.id)
-        .map((row) => ({
-          id: row.id,
-          guestName: row.guest_name,
-          attending: row.attending,
-          guestCount: row.guest_count,
-          message: row.message ?? "",
-          createdAt: row.created_at,
-        })),
-      photos: filteredPhotos
-        .filter((row) => row.wedding_id === wedding.id)
-        .map((row) => ({
-          id: row.id,
-          guestName: row.guest_name,
-          url: photoUrl(config.projectUrl, row.storage_path),
-          createdAt: row.created_at,
-        })),
-    })),
+      rsvps: dashboardRsvps,
+      photos: dashboardPhotos,
+    };
+  });
+
+  return {
+    rsvpContactFieldsAvailable: weddingRows.every((entry) => entry.rsvpContactFieldsAvailable),
+    rsvpCheckInAvailable: weddingRows.every((entry) => entry.rsvpCheckInAvailable),
+    weddings: dashboardWeddings,
   };
 }

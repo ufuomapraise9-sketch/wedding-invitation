@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatWeddingDate } from "@/data/weddings";
 import type { Wedding } from "@/types/wedding";
 import Countdown from "./Countdown";
 import GuestPhotoSharing from "./GuestPhotoSharing";
+import HeroSlideshow from "./HeroSlideshow";
 import PhotoGallery from "./PhotoGallery";
 import RSVP from "./RSVP";
 import WeddingLanding from "./WeddingLanding";
@@ -14,62 +15,16 @@ import WeddingLanding from "./WeddingLanding";
 export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
   const [hasEntered, setHasEntered] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
-  const [shareFeedback, setShareFeedback] = useState("");
+  const musicRef = useRef<HTMLAudioElement | null>(null);
 
-  const handleEnter = useCallback(() => setHasEntered(true), []);
+  const handleEnter = useCallback(() => {
+    setHasEntered(true);
+    const audio = musicRef.current;
+    if (audio) {
+      void audio.play().catch(() => undefined);
+    }
+  }, []);
   const handleLandingExit = useCallback(() => setShowLanding(false), []);
-
-  async function handleShareInvitation() {
-    const url = window.location.href;
-    const title = `${wedding.brideName} & ${wedding.groomName} | Wedding Invitation`;
-    const text = `You're invited to celebrate with ${wedding.brideName} & ${wedding.groomName}.`;
-
-    setShareFeedback("");
-
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title, text, url });
-        setShareFeedback("Invitation shared.");
-      } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
-          return;
-        }
-
-        console.error("Unable to share this wedding invitation:", error);
-        setShareFeedback("We couldn't open the share menu. Please copy the invitation link from your browser.");
-      }
-      return;
-    }
-
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-      } else {
-        const copyField = document.createElement("textarea");
-        copyField.value = url;
-        copyField.setAttribute("readonly", "");
-        copyField.style.position = "fixed";
-        copyField.style.opacity = "0";
-        document.body.appendChild(copyField);
-        let copied = false;
-        try {
-          copyField.select();
-          copied = document.execCommand("copy");
-        } finally {
-          copyField.remove();
-        }
-
-        if (!copied) {
-          throw new Error("The browser did not allow copying the invitation link.");
-        }
-      }
-
-      setShareFeedback("Invitation link copied!");
-    } catch (error) {
-      console.error("Unable to copy the wedding invitation link:", error);
-      setShareFeedback("We couldn't copy the link. Please copy it from your browser's address bar.");
-    }
-  }
 
   useEffect(() => {
     document.body.classList.toggle("entrance-locked", showLanding);
@@ -156,7 +111,7 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
               <div className="invitation-card-inner">
                 <p className="invitation-monogram">{wedding.monogram}</p>
                 <p className="eyebrow invitation-eyebrow">You are invited to</p>
-                <h1 className="couple-names" id="invitation-title">
+                <h1 className="couple-names">
                   <span>{wedding.brideName}</span>
                   <span className="ampersand">&</span>
                   <span>{wedding.groomName}</span>
@@ -171,12 +126,15 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
                 {wedding.couplePhoto ? (
                   <figure className="couple-photo">
                     <div className="couple-photo-frame">
-                      <Image
-                        src={wedding.couplePhoto}
-                        alt={`${wedding.brideName} and ${wedding.groomName}`}
-                        fill
-                        priority
-                        sizes="(max-width: 600px) 78vw, (max-width: 900px) 60vw, 460px"
+                      <HeroSlideshow
+                        images={wedding.openingSlideshowPhotos?.length
+                          ? wedding.openingSlideshowPhotos
+                          : wedding.gallery.length ? wedding.gallery : [wedding.couplePhoto]}
+                        brideName={wedding.brideName}
+                        groomName={wedding.groomName}
+                        weddingDate={wedding.date}
+                        hashtag={wedding.hashtag}
+                        isActive={hasEntered}
                       />
                     </div>
                     <figcaption className="photo-caption">
@@ -196,10 +154,6 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
                 <p className="invitation-date">{dateLabel}</p>
               </div>
             </div>
-            <a className="scroll-cue" href="#wedding-day">
-              <span aria-hidden="true" />
-              Discover the day
-            </a>
           </section>
 
           <section
@@ -259,7 +213,11 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
               <p className="eyebrow">{wedding.hashtag || "A little about us"}</p>
               <h2 id="story-title">Our Story</h2>
               <div className="story-ornament" aria-hidden="true">— ✦ —</div>
-              <p>{wedding.story}</p>
+              <div className="story-body">
+                {wedding.story.split(/\n\s*\n/).map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -301,23 +259,6 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
                 {wedding.monogram}
               </p>
               <p className="closing-date">{wedding.hashtag} · {dateLabel}</p>
-              <button
-                className="button button-outline invitation-share-button"
-                onClick={handleShareInvitation}
-                type="button"
-              >
-                <svg aria-hidden="true" className="share-icon" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M5 12v7h14v-7" />
-                </svg>
-                Share Invitation
-              </button>
-              <p
-                className="invitation-share-feedback"
-                aria-live="polite"
-                role="status"
-              >
-                {shareFeedback}
-              </p>
             </div>
           </section>
         </main>
@@ -328,6 +269,14 @@ export default function WeddingInvitation({ wedding }: { wedding: Wedding }) {
           </p>
         </footer>
       </div>
+      {hasEntered && (
+        <a className="scroll-up-cue" href="#home" aria-label="Scroll up to the invitation">
+          <span aria-hidden="true">↑</span> Scroll up
+        </a>
+      )}
+      {wedding.backgroundMusic && (
+        <audio ref={musicRef} src={wedding.backgroundMusic} loop preload="none" />
+      )}
     </div>
   );
 }

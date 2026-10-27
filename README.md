@@ -21,40 +21,63 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Save RSVP replies in Supabase
 
 The RSVP form posts to the server-only `/api/rsvp` route. The route validates
-the request and writes each response to the `wedding_rsvps` table using the
-existing `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` server environment
+the request and writes each response to the `public.wedding_rsvps` table using
+the existing `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` server environment
 variables. Replies are associated with a wedding ID; a declined reply is
-stored with `attending = false` and `guest_count = 0`. The form saves an
-optional message and dietary needs, and the route enforces the configured
-per-wedding guest limit (up to 10 guests).
+stored with `attending = false` and `guest_count = 0`. The existing
+`guest_count` and `dietary_needs` columns are used as named in the database.
+Email and message are optional. A phone number is required for an online RSVP
+and is normalized so common Nigerian local and international formats match.
+Each phone number can be used once per wedding.
 
 Run [`supabase/wedding-rsvps.sql`](./supabase/wedding-rsvps.sql) in the
-Supabase SQL Editor to create the table or add the optional message column to an
-existing table and refresh the API schema cache. The script is safe to rerun.
-If the message column is not yet available, an RSVP is still saved without its
-optional note and the guest is told to share that note with the RSVP contact.
-Row-level security is enabled and
-no guest-facing policies are created; browser clients cannot read or write RSVP
-records. The service-role key is used only by the server and must never be
-exposed in a `NEXT_PUBLIC_` variable.
+Supabase SQL Editor to create or update the RSVP table, add optional `email` and
+`phone` columns, add private ticket tokens and check-in timestamps, backfill
+tokens for existing attending RSVPs, enforce per-wedding phone uniqueness, and
+refresh the API schema cache. Existing duplicate phone groups are retained and
+marked as legacy conflicts; those numbers cannot be used for additional RSVPs.
+Attending guests receive a QR ticket after submitting the form; the code
+contains only an opaque token. If the message column is not available, the RSVP
+is still saved without the message and the guest is notified.
+Row-level security is enabled and no guest-facing policies are created; browser
+clients cannot read or write RSVP records. The service-role key is used only by
+the server and must never be exposed in a `NEXT_PUBLIC_` variable.
 
-No spreadsheet connector or RSVP-specific environment variables are needed.
+The RSVP flow does not call an AI provider or read a Gemini API key. No
+spreadsheet connector or additional RSVP-specific environment variables are
+needed.
 If Supabase is unavailable or a reply cannot be saved, the form shows an error
 and guests can still RSVP by phone or WhatsApp.
 
 ## Private admin dashboard
 
-The `/admin` route is intentionally locked. No authentication provider or
-admin session system exists in this project, so the route does not query or
-expose wedding, guest, RSVP, or uploaded-photo data. Do not deploy an unlocked
-admin dashboard publicly. Connect and verify an authentication provider in
-`lib/admin-auth.ts` before enabling `getAdminDashboardData`; both the route and
-the server-only data-access layer fail closed until then.
+The `/admin` route redirects unauthenticated users to `/admin/login`. Sign-in
+uses Supabase email/password authentication with a server-verified session.
+Configure these server-side environment variables:
 
-The dashboard view is prepared to show each couple, RSVP totals and responses,
-and guest-uploaded photo previews. It uses the existing server-only Supabase
-variables and table schemas; it does not add database tables or modify the
-public RSVP or guest-photo upload flows.
+- `SUPABASE_URL` — the existing Supabase project URL.
+- `SUPABASE_ANON_KEY` — the project's anon/publishable API key. It is used only
+  by server-side authentication code and is not sent to the browser.
+- `ADMIN_EMAILS` — comma-separated email addresses allowed to access the admin
+  dashboard.
+
+The dashboard also requires the existing server-only
+`SUPABASE_SERVICE_ROLE_KEY` for its data reads. That key is never used by the
+login form or exposed to the browser. Configure email/password sign-in in
+Supabase Authentication, create or invite the first admin under **Authentication
+→ Users**, add that account's email to `ADMIN_EMAILS`, then restart/redeploy the
+application. Keep public sign-ups disabled; only explicitly allowlisted,
+email-confirmed accounts can view the dashboard. Administrators can end their
+session with the **Sign out** button.
+
+Once authentication is configured, the dashboard shows each couple, RSVP
+totals and responses (including guest email and phone when available), and
+guest-uploaded photo previews. Admins can open the ticket scanner to validate
+an attending guest's QR code and check in that RSVP party once. Camera access
+requires HTTPS in production (or localhost during development). Check-in
+timestamps are shown in the RSVP table. The dashboard and check-in route use
+the existing server-only Supabase variables; privileged credentials and ticket
+tokens are not exposed in admin data or QR URLs.
 
 ## Connect guest wedding photo uploads to Supabase
 

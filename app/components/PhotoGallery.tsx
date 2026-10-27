@@ -4,8 +4,10 @@ import type { Wedding } from "@/types/wedding";
 export default function PhotoGallery({
   wedding,
 }: {
-  wedding: Pick<Wedding, "brideName" | "groomName" | "initials" | "gallery">;
+  wedding: Pick<Wedding, "brideName" | "groomName" | "initials" | "gallery" | "galleryVideo">;
 }) {
+  const hasGalleryContent = wedding.gallery.length > 0 || Boolean(wedding.galleryVideo);
+
   return (
     <section className="gallery-section section-shell reveal" aria-labelledby="gallery-title">
       <div className="section-heading">
@@ -13,7 +15,7 @@ export default function PhotoGallery({
         <h2 id="gallery-title">A Glimpse of Us</h2>
         <div className="heading-ornament" aria-hidden="true">✦</div>
       </div>
-      {wedding.gallery.length > 0 ? (
+      {hasGalleryContent ? (
         <div className={`photo-gallery${wedding.gallery.length <= 2 ? " photo-gallery-two" : ""}`}>
           {wedding.gallery.map((photo, index) => (
             <figure className={`gallery-photo gallery-photo-${index + 1}`} key={`${photo}-${index}`}>
@@ -25,6 +27,21 @@ export default function PhotoGallery({
               />
             </figure>
           ))}
+          {wedding.galleryVideo && (
+            <figure className="gallery-video-card">
+              <video
+                aria-label={`${wedding.brideName} and ${wedding.groomName}'s wedding slideshow video`}
+                controls
+                playsInline
+                preload="none"
+                poster="/cover-photo.jpg"
+              >
+                <source src={wedding.galleryVideo} type="video/mp4" />
+                Your browser does not support video playback.
+              </video>
+              <figcaption>Our story in motion</figcaption>
+            </figure>
+          )}
         </div>
       ) : (
         <div className="couple-photo-placeholder gallery-photo-placeholder" role="img"
