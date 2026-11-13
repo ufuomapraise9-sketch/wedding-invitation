@@ -33,14 +33,6 @@ function formatTimestamp(value: string | null): string {
       }).format(date);
 }
 
-function csvCell(value: string | number | null): string {
-  let text = value === null ? "" : String(value);
-  if (/^[\u0000-\u0020]*[=+\-@]/.test(text)) {
-    text = `'${text}`;
-  }
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -251,48 +243,88 @@ export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
   const decliningCount = rsvps.length - attending.length;
   const expectedGuests = attending.reduce((total, rsvp) => total + rsvp.guestCount, 0);
 
-  const downloadRsvpCsv = () => {
+  const downloadRsvpPdf = async () => {
     if (!wedding) {
       return;
     }
 
-    const rows = [
-      [
-        "Wedding",
-        "Wedding date",
-        "Guest name",
-        "Email",
-        "Phone",
-        "Response",
-        "Party size",
-        "Dietary needs",
-        "Submitted at",
-        "Check-in",
-      ],
-      ...wedding.rsvps.map((rsvp) => [
-        `${wedding.brideName} & ${wedding.groomName}`,
-        wedding.date,
-        rsvp.guestName,
-        rsvp.guestEmail,
-        rsvp.guestPhone,
-        rsvp.attending ? "Attending" : "Not attending",
-        rsvp.attending ? rsvp.guestCount : 0,
-        rsvp.dietaryNeeds,
-        rsvp.createdAt,
-        rsvp.attending
-          ? checkInTimestamps[rsvp.id] || rsvp.checkedInAt || "Not checked in"
-          : "",
-      ]),
-    ];
-    const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
-    const fileUrl = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = fileUrl;
-    link.download = `${wedding.id}-rsvps.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(fileUrl);
+    const [{ jsPDF }, { autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
+    const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const attendingCount = wedding.rsvps.filter((rsvp) => rsvp.attending).length;
+
+    pdf.setProperties({
+      title: `RSVP guest list - ${wedding.brideName} and ${wedding.groomName}`,
+      subject: "Wedding RSVP submissions",
+    });
+    pdf.setTextColor(73, 58, 48);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(19);
+    pdf.text("Wedding RSVP guest list", 32, 34);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(12);
+    pdf.text(`${wedding.brideName} & ${wedding.groomName}`, 32, 53);
+    pdf.setFontSize(9);
+    pdf.text(
+      `Wedding date: ${formatDate(wedding.date)} | Responses: ${wedding.rsvps.length} | Attending: ${attendingCount} | Not attending: ${wedding.rsvps.length - attendingCount}`,
+      32,
+      69,
+    );
+
+    autoTable(pdf, {
+      startY: 84,
+      head: [["Guest name", "Email", "Phone", "Response", "Party size", "Dietary needs", "Submitted", "Check-in"]],
+      body: wedding.rsvps.map((rsvp) => {
+        const checkedInAt = checkInTimestamps[rsvp.id] || rsvp.checkedInAt;
+        return [
+          rsvp.guestName,
+          rsvp.guestEmail || "-",
+          rsvp.guestPhone || "-",
+          rsvp.attending ? "Attending" : "Not attending",
+          rsvp.attending ? String(rsvp.guestCount) : "0",
+          rsvp.dietaryNeeds || "-",
+          formatTimestamp(rsvp.createdAt),
+          rsvp.attending
+            ? checkedInAt
+              ? `Checked in ${formatTimestamp(checkedInAt)}`
+              : "Not checked in"
+            : "-",
+        ];
+      }),
+      margin: { top: 84, right: 32, bottom: 32, left: 32 },
+      styles: {
+        font: "helvetica",
+        fontSize: 7,
+        cellPadding: 4,
+        overflow: "linebreak",
+        valign: "middle",
+        textColor: [62, 52, 44],
+      },
+      headStyles: { fillColor: [101, 77, 58], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [250, 247, 242] },
+      columnStyles: {
+        0: { cellWidth: 95 },
+        1: { cellWidth: 115 },
+        2: { cellWidth: 85 },
+        3: { cellWidth: 70 },
+        4: { cellWidth: 52 },
+        5: { cellWidth: 115 },
+        6: { cellWidth: 95 },
+        7: { cellWidth: 110 },
+      },
+      didDrawPage: ({ pageNumber }) => {
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(120, 110, 101);
+        pdf.text(`Page ${pageNumber}`, pageWidth - 32, pageHeight - 14, { align: "right" });
+      },
+    });
+
+    pdf.save(`${wedding.id}-rsvps.pdf`);
   };
 
   const handleTicketScan = useCallback(async (ticketToken: string) => {
@@ -451,10 +483,10 @@ export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
                   <button
                     className="admin-scan-button admin-download-button"
                     disabled={rsvps.length === 0}
-                    onClick={downloadRsvpCsv}
+                    onClick={downloadRsvpPdf}
                     type="button"
                   >
-                    Download guest list
+                    Download guest list PDF
                   </button>
                   <button
                     className="admin-scan-button"
