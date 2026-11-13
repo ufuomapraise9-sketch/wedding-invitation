@@ -33,6 +33,14 @@ function formatTimestamp(value: string | null): string {
       }).format(date);
 }
 
+function csvCell(value: string | number | null): string {
+  let text = value === null ? "" : String(value);
+  if (/^[\u0000-\u0020]*[=+\-@]/.test(text)) {
+    text = `'${text}`;
+  }
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -243,6 +251,50 @@ export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
   const decliningCount = rsvps.length - attending.length;
   const expectedGuests = attending.reduce((total, rsvp) => total + rsvp.guestCount, 0);
 
+  const downloadRsvpCsv = () => {
+    if (!wedding) {
+      return;
+    }
+
+    const rows = [
+      [
+        "Wedding",
+        "Wedding date",
+        "Guest name",
+        "Email",
+        "Phone",
+        "Response",
+        "Party size",
+        "Dietary needs",
+        "Submitted at",
+        "Check-in",
+      ],
+      ...wedding.rsvps.map((rsvp) => [
+        `${wedding.brideName} & ${wedding.groomName}`,
+        wedding.date,
+        rsvp.guestName,
+        rsvp.guestEmail,
+        rsvp.guestPhone,
+        rsvp.attending ? "Attending" : "Not attending",
+        rsvp.attending ? rsvp.guestCount : 0,
+        rsvp.dietaryNeeds,
+        rsvp.createdAt,
+        rsvp.attending
+          ? checkInTimestamps[rsvp.id] || rsvp.checkedInAt || "Not checked in"
+          : "",
+      ]),
+    ];
+    const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+    const fileUrl = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = fileUrl;
+    link.download = `${wedding.id}-rsvps.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(fileUrl);
+  };
+
   const handleTicketScan = useCallback(async (ticketToken: string) => {
     if (!wedding) {
       setCheckInFeedback({ type: "error", message: "Select a wedding before scanning tickets." });
@@ -395,17 +447,27 @@ export default function AdminDashboard({ data }: { data: AdminDashboardData }) {
                   <p className="admin-overline">Guest replies</p>
                   <h3 id="admin-rsvp-heading">RSVPs <span>{rsvps.length}</span></h3>
                 </div>
-                <button
-                  className="admin-scan-button"
-                  disabled={isCheckingIn || !data.rsvpCheckInAvailable}
-                  onClick={() => {
-                    setCheckInFeedback(null);
-                    setScannerOpen((open) => !open);
-                  }}
-                  type="button"
-                >
-                  {isCheckingIn ? "Checking in…" : scannerOpen ? "Close scanner" : "Scan tickets"}
-                </button>
+                <div className="admin-rsvp-actions">
+                  <button
+                    className="admin-scan-button admin-download-button"
+                    disabled={rsvps.length === 0}
+                    onClick={downloadRsvpCsv}
+                    type="button"
+                  >
+                    Download guest list
+                  </button>
+                  <button
+                    className="admin-scan-button"
+                    disabled={isCheckingIn || !data.rsvpCheckInAvailable}
+                    onClick={() => {
+                      setCheckInFeedback(null);
+                      setScannerOpen((open) => !open);
+                    }}
+                    type="button"
+                  >
+                    {isCheckingIn ? "Checking in…" : scannerOpen ? "Close scanner" : "Scan tickets"}
+                  </button>
+                </div>
               </div>
               {scannerOpen && (
                 <div className="admin-ticket-scanner">

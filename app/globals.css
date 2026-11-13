@@ -4353,6 +4353,13 @@ a:focus-visible {
   font-weight: 600;
 }
 
+.admin-rsvp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .admin-scan-button {
   min-height: 38px;
   padding: 8px 14px;
